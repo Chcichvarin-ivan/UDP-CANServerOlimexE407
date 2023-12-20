@@ -1,2 +1,0 @@
-../Src/stm32f4xx_it.c:79:6:TIM1_UP_TIM10_IRQHandler	8	static
-../Src/stm32f4xx_it.c:93:6:ETH_IRQHandler	8	static
