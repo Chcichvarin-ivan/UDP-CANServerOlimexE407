@@ -53,7 +53,7 @@ typedef StaticQueue_t osStaticMessageQDef_t;
 osThreadId_t AppTaskHandle;
 const osThreadAttr_t AppTask_attributes = {
   .name = "AppTask",
-  .stack_size = 128 * 4,
+  .stack_size = 2048,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -62,8 +62,8 @@ const osThreadAttr_t AppTask_attributes = {
 osThreadId_t CANTaskHandle;
 const osThreadAttr_t CANTask_attributes = {
   .name = "CANTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .stack_size = 2048,
+  .priority = (osPriority_t) osPriorityNormal1,
 };
 
 /* Definitions for CANPacketQueue */
@@ -81,8 +81,8 @@ const osMessageQueueAttr_t CANPacketQueue_attributes = {
 osThreadId_t UDPTaskHandle;
 const osThreadAttr_t UDPTask_attributes = {
   .name = "UDPTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .stack_size = 2048,
+  .priority = (osPriority_t) osPriorityNormal2,
 };
 
 /* Definitions for UdpPacketQueue */
@@ -145,9 +145,11 @@ void MX_FREERTOS_Init(void) {
 
 
   /* USER CODE BEGIN RTOS_THREADS */
-	AppTaskHandle = osThreadNew(AppTask, NULL, &AppTask_attributes);
-	CANTaskHandle = osThreadNew(CANTask, NULL, &CANTask_attributes);
-	UDPTaskHandle = osThreadNew(UDPTask, NULL, &UDPTask_attributes);
+  	UDPTaskHandle = osThreadNew(UDPTask, NULL, &UDPTask_attributes);
+  	CANTaskHandle = osThreadNew(CANTask, NULL, &CANTask_attributes);
+  	AppTaskHandle = osThreadNew(AppTask, NULL, &AppTask_attributes);
+
+
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -208,9 +210,13 @@ void UDPTask(void *argument)
 	for(;;)
 	{
 		udp_message_type in_msg;
-		osMessageQueueGet(UdpPacketQueueHandle,&in_msg,0,osWaitForever);
-		udp_server_send(in_msg);
-		osDelay(5);
+		if(osOK == osMessageQueueGet(UdpPacketQueueHandle,&in_msg,0,osWaitForever))
+		{
+			udp_server_send(in_msg);
+		}
+
+		osThreadYield();
+
 	}
 }
 
@@ -221,6 +227,7 @@ bool udp_server_push_packet(const ip_addr_t *in_addr,u16_t in_port,struct pbuf *
 	udp_message_type in_msg;
 	in_msg.ip_addr = in_addr->addr;
 	in_msg.port = in_port;
+	in_msg.length = in_buf->len;
 	memset(in_msg.udp_recvbuf,0,UDP_MAX_MSG_SIZE);
 	memcpy(in_msg.udp_recvbuf,in_buf->payload,in_buf->len);
 	is_enqueued  = osMessageQueuePut(UdpPacketQueueHandle,&in_msg,0,osWaitForever);

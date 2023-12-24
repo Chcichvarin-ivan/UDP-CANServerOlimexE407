@@ -6,8 +6,8 @@
  */
 #ifndef __UDP_SERVER_H__
 #define __UDP_SERVER_H__
-#define UDP_MAX_MSG_SIZE		1024
-#define UDP_QUEUE_SIZE			32
+#define UDP_MAX_MSG_SIZE		512
+#define UDP_QUEUE_SIZE			16
 
 #include "lwip/udp.h"
 #include "stdbool.h"
@@ -16,6 +16,7 @@ typedef struct
 {
 	u32_t ip_addr;
 	u16_t port;
+	u16_t length;
 	u8_t udp_recvbuf[UDP_MAX_MSG_SIZE];
 }udp_message_type;
 
