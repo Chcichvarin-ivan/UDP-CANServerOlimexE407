@@ -22,16 +22,32 @@
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
-#include "udp_server.h"
 #include "string.h"
+
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "udp_server.h"
+#include "can_driver.h"
 typedef StaticQueue_t osStaticMessageQDef_t;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+// normaly there will be more task specific struct but since we have no specyfiks of the process we are controlling
+// we are just copeing the buffers
+typedef struct
+{
+	uint8_t payload[UDP_MAX_MSG_SIZE];
+	uint16_t length;
+}App_udp_message_type;
+
+
+typedef struct
+{
+	uint8_t Data_Buf[8];
+	uint16_t length;
+}App_can_message_type;
 
 /* USER CODE END PTD */
 
@@ -59,6 +75,32 @@ const osThreadAttr_t AppTask_attributes = {
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
+/* Definitions for AppUdpPacketQueue */
+osMessageQueueId_t AppUdpPacketQueueHandle;
+uint8_t AppUdpPacketQueueBuffer[ APP_UDP_QUEUE_SIZE * sizeof(App_udp_message_type) ];
+osStaticMessageQDef_t AppUdpPacketQueueControlBlock;
+const osMessageQueueAttr_t AppUdpPacketQueueAttributes = {
+  .name = "AppUdpPacketQueue",
+  .cb_mem = &AppUdpPacketQueueControlBlock,
+  .cb_size = sizeof(AppUdpPacketQueueControlBlock),
+  .mq_mem = &AppUdpPacketQueueBuffer,
+  .mq_size = sizeof(AppUdpPacketQueueBuffer)
+};
+
+/* Definitions for AppCANPacketQueue */
+osMessageQueueId_t AppCANPacketQueueHandle;
+uint8_t AppCANPacketQueueBuffer[ APP_CAN_QUEUE_SIZE * sizeof(App_can_message_type) ];
+osStaticMessageQDef_t AppCANPacketQueueControlBlock;
+const osMessageQueueAttr_t AppCANPacketQueueAttributes = {
+  .name = "AppCANPacketQueue",
+  .cb_mem = &AppCANPacketQueueControlBlock,
+  .cb_size = sizeof(AppCANPacketQueueControlBlock),
+  .mq_mem = &AppCANPacketQueueBuffer,
+  .mq_size = sizeof(AppCANPacketQueueBuffer)
+};
+
+
+
 osThreadId_t CANTaskHandle;
 const osThreadAttr_t CANTask_attributes = {
   .name = "CANTask",
@@ -67,15 +109,26 @@ const osThreadAttr_t CANTask_attributes = {
 };
 
 /* Definitions for CANPacketQueue */
-osMessageQueueId_t CANPacketQueueHandle;
-uint8_t CANPacketQueueBuffer[ 16 * sizeof( uint16_t ) ];
-osStaticMessageQDef_t CANPacketQueueControlBlock;
-const osMessageQueueAttr_t CANPacketQueue_attributes = {
+osMessageQueueId_t CANRxPacketQueueHandle;
+uint8_t CANRxPacketQueueBuffer[ CAN_RX_PACKET_QUEUE_SIZE * sizeof( CAN_Message_type ) ];
+osStaticMessageQDef_t CANRxPacketQueueControlBlock;
+const osMessageQueueAttr_t CANRxPacketQueueAttributes = {
   .name = "CANPacketQueue",
-  .cb_mem = &CANPacketQueueControlBlock,
-  .cb_size = sizeof(CANPacketQueueControlBlock),
-  .mq_mem = &CANPacketQueueBuffer,
-  .mq_size = sizeof(CANPacketQueueBuffer)
+  .cb_mem = &CANRxPacketQueueControlBlock,
+  .cb_size = sizeof(CANRxPacketQueueControlBlock),
+  .mq_mem = &CANRxPacketQueueBuffer,
+  .mq_size = sizeof(CANRxPacketQueueBuffer)
+};
+
+osMessageQueueId_t CANTxPacketQueueHandle;
+uint8_t CANTxPacketQueueBuffer[ CAN_RX_PACKET_QUEUE_SIZE  * sizeof( CAN_Message_type ) ];
+osStaticMessageQDef_t CANTxPacketQueueControlBlock;
+const osMessageQueueAttr_t CANTxPacketQueueAttributes = {
+  .name = "CANTxPacketQueue",
+  .cb_mem = &CANTxPacketQueueControlBlock,
+  .cb_size = sizeof(CANTxPacketQueueControlBlock),
+  .mq_mem = &CANTxPacketQueueBuffer,
+  .mq_size = sizeof(CANTxPacketQueueBuffer)
 };
 
 osThreadId_t UDPTaskHandle;
@@ -86,16 +139,28 @@ const osThreadAttr_t UDPTask_attributes = {
 };
 
 /* Definitions for UdpPacketQueue */
-osMessageQueueId_t UdpPacketQueueHandle;
-uint8_t UdpPacketQueueBuffer[ UDP_QUEUE_SIZE * sizeof(udp_message_type) ];
-osStaticMessageQDef_t UdpPacketQueueControlBlock;
-const osMessageQueueAttr_t UdpPacketQueue_attributes = {
-  .name = "UdpPacketQueue",
-  .cb_mem = &UdpPacketQueueControlBlock,
-  .cb_size = sizeof(UdpPacketQueueControlBlock),
-  .mq_mem = &UdpPacketQueueBuffer,
-  .mq_size = sizeof(UdpPacketQueueBuffer)
+osMessageQueueId_t UdpRxPacketQueueHandle;
+uint8_t UdpRxPacketQueueBuffer[ UDP_RX_QUEUE_SIZE * sizeof(udp_message_type) ];
+osStaticMessageQDef_t UdpRxPacketQueueControlBlock;
+const osMessageQueueAttr_t UdpRxPacketQueueAttributes = {
+  .name = "UdpRxPacketQueue",
+  .cb_mem = &UdpRxPacketQueueControlBlock,
+  .cb_size = sizeof(UdpRxPacketQueueControlBlock),
+  .mq_mem = &UdpRxPacketQueueBuffer,
+  .mq_size = sizeof(UdpRxPacketQueueBuffer)
 };
+
+osMessageQueueId_t UdpTxPacketQueueHandle;
+uint8_t UdpTxPacketQueueBuffer[ UDP_TX_QUEUE_SIZE * sizeof(udp_message_type) ];
+osStaticMessageQDef_t UdpTxPacketQueueControlBlock;
+const osMessageQueueAttr_t UdpTxPacketQueueAttributes = {
+  .name = "UdpTxPacketQueue",
+  .cb_mem = &UdpTxPacketQueueControlBlock,
+  .cb_size = sizeof(UdpTxPacketQueueControlBlock),
+  .mq_mem = &UdpTxPacketQueueBuffer,
+  .mq_size = sizeof(UdpTxPacketQueueBuffer)
+};
+
 
 void AppTask(void *argument);
 void CANTask(void *argument);
@@ -134,12 +199,17 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the queue(s) */
   /* creation of UdpPacketQueue */
-  UdpPacketQueueHandle = osMessageQueueNew (UDP_QUEUE_SIZE, sizeof(udp_message_type), &UdpPacketQueue_attributes);
-
+  UdpRxPacketQueueHandle = osMessageQueueNew (UDP_RX_QUEUE_SIZE, sizeof(udp_message_type), &UdpRxPacketQueueAttributes);
+  UdpTxPacketQueueHandle = osMessageQueueNew (UDP_TX_QUEUE_SIZE, sizeof(udp_message_type), &UdpTxPacketQueueAttributes);
   /* creation of CANPacketQueue */
-  CANPacketQueueHandle = osMessageQueueNew (16, sizeof(uint16_t), &CANPacketQueue_attributes);
+  CANRxPacketQueueHandle = osMessageQueueNew (CAN_RX_PACKET_QUEUE_SIZE , sizeof(CAN_Message_type), &CANRxPacketQueueAttributes);
+  CANTxPacketQueueHandle = osMessageQueueNew (CAN_TX_PACKET_QUEUE_SIZE , sizeof(CAN_Message_type), &CANTxPacketQueueAttributes);
+
+  AppUdpPacketQueueHandle = osMessageQueueNew ( APP_UDP_QUEUE_SIZE , sizeof(App_udp_message_type), &AppUdpPacketQueueAttributes);
+  AppCANPacketQueueHandle = osMessageQueueNew ( APP_UDP_QUEUE_SIZE , sizeof(App_can_message_type), &AppCANPacketQueueAttributes);
   /* USER CODE END RTOS_QUEUES */
 
+  #define APP_CAN_QUEUE_SIZE 8
   /* Create the thread(s) */
   /* creation of defaultTask */
 
@@ -189,6 +259,20 @@ void AppTask(void *argument)
    for(;;)
    {
 	   sign_of_life();
+	   App_udp_message_type udp_msg;
+	   App_can_message_type can_msg;
+
+
+	   	if(osOK == osMessageQueueGet(AppUdpPacketQueueHandle,&udp_msg,0,0))
+	   	{
+	   		//do smth
+	   	}
+
+	   	if(osOK == osMessageQueueGet(AppCANPacketQueueHandle,&can_msg,0,0))
+	   	{
+	   		//do smth
+	   	}
+
 	   osDelay(10);
    }
   /* USER CODE END StartDefaultTask */
@@ -200,6 +284,7 @@ void CANTask(void *argument)
 {
 	for(;;)
 	{
+		can_handler();
 		osDelay(20);
 	}
 }
@@ -209,36 +294,12 @@ void UDPTask(void *argument)
 
 	for(;;)
 	{
-		udp_message_type in_msg;
-		if(osOK == osMessageQueueGet(UdpPacketQueueHandle,&in_msg,0,osWaitForever))
-		{
-			udp_server_send(in_msg);
-		}
-
-		osThreadYield();
+		udp_handler();
+		osDelay(5);
 
 	}
 }
 
-bool udp_server_push_packet(const ip_addr_t *in_addr,u16_t in_port,struct pbuf *in_buf)
-{
-	bool ret_val = false;
-	osStatus_t is_enqueued;
-	udp_message_type in_msg;
-	in_msg.ip_addr = in_addr->addr;
-	in_msg.port = in_port;
-	in_msg.length = in_buf->len;
-	memset(in_msg.udp_recvbuf,0,UDP_MAX_MSG_SIZE);
-	memcpy(in_msg.udp_recvbuf,in_buf->payload,in_buf->len);
-	is_enqueued  = osMessageQueuePut(UdpPacketQueueHandle,&in_msg,0,osWaitForever);
-	if(is_enqueued == osOK)
-	{
-		ret_val = true;
-	}else
-	{
-		ret_val = false;
-	}
-	return ret_val;
-}
+
 /* USER CODE END Application */
 

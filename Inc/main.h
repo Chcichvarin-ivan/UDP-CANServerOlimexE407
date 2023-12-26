@@ -31,11 +31,29 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdbool.h>
+#include "stm32f4xx_hal.h"
+#include "stm32f4xx_ll_dma.h"
+#include "stm32f4xx_ll_rcc.h"
+#include "stm32f4xx_ll_bus.h"
+#include "stm32f4xx_ll_system.h"
+#include "stm32f4xx_ll_exti.h"
+#include "stm32f4xx_ll_cortex.h"
+#include "stm32f4xx_ll_utils.h"
+#include "stm32f4xx_ll_pwr.h"
+#include "stm32f4xx_ll_gpio.h"
+#include "cmsis_os.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "can.h"
+#include "gpio.h"
 /* USER CODE END Includes */
-
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+#define APP_UDP_QUEUE_SIZE 8
+#define APP_CAN_QUEUE_SIZE 8
+
 
 /* USER CODE END ET */
 
